@@ -30,17 +30,12 @@ dimKF = 2;
 % Init Constant velocity for standard Kalman Fitler
 [xk, A, Pk, Q, Hkf, R] = initConstVelocity_KF(dimKF);  % define the dimension
 
-disp(Q)
-
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
 % EXTENDED KALMAN FILTER IMPLEMENTATION USING CONTROL SYSTEM TOOLBOX
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-% This is the official Matlab example for ekfObj from Mathworks taken from
-% here https://www.mathworks.com/help/control/ref/extendedkalmanfilter.html#bvd_iy8-11
 
 % Specify an initial guess for the two states
 initialStateGuess = [2; 1.5; 0; 0];   % the state vector [x, y, vx, vy];
@@ -65,9 +60,6 @@ ekfObj.MeasurementNoise = R_ekf;
 % Q_ekf = diag([0.001 0.001 0.001 0.001]);
 Q_ekf = Q;
 ekfObj.ProcessNoise = Q_ekf ;
-% disp(Q_ekf)
-% disp(issymmetric(Q_ekf))
-% disp(eig(Q_ekf))
 
 [Nsteps, n] = size(t2A_4R); 
 xCorrectedEKFObj = zeros(Nsteps,4); % Corrected state estimates
@@ -75,17 +67,13 @@ PCorrectedEKF = zeros(Nsteps,4,4); % Corrected state estimation error covariance
 e = zeros(Nsteps,4); % Residuals (or innovations)
 
 for k=1 : Nsteps
-    % Let k denote the current time.
-    %
-    % Residuals (or innovations): Measured output - Predicted output
-%     e(k,:) = yMeas(:, k) - citrackMeasurementFcn(ekfObj.State);
     
     % Incorporate the measurements at time k into the state estimates by
     % using the "correct" command. This updates the State and StateCovariance
     % properties of the filter to contain x[k|k] and P[k|k]. These values
     % are also produced as the output of the "correct" command.    
-%     [xCorrectedekfObj(k,:), PCorrected(k,:,:)] = correct(ekfObj,yMeas(:, k));  % why 2x1 instead 4x1?
-    [xCorrectedEKFObj(k,:), PCorrectedEKF(k,:,:)] = correct(ekfObj,t2A_4R(k, :));  % why 2x1 instead 4x1?
+%     [xCorrectedekfObj(k,:), PCorrected(k,:,:)] = correct(ekfObj,yMeas(:, k)); 
+    [xCorrectedEKFObj(k,:), PCorrectedEKF(k,:,:)] = correct(ekfObj,t2A_4R(k, :)); 
     
     % Predict the states at next time step, k+1. This updates the State and
     % StateCovariance properties of the filter to contain x[k+1|k] and
@@ -117,10 +105,7 @@ xCorrectedUKF = zeros(Nsteps,4); % Corrected state estimates
 PCorrectedUKF = zeros(Nsteps,4,4); % Corrected state estimation error covariances
 
 for k=1:Nsteps
-    % Let k denote the current time.
-    %
-    % Residuals (or innovations): Measured output - Predicted output
-%     e(k) = yMeas(k) - vdpMeasurementFcn(ukf.State); % ukf.State is x[k|k-1] at this point
+    
     % Incorporate the measurements at time k into the state estimates by
     % using the "correct" command. This updates the State and StateCovariance
     % properties of the filter to contain x[k|k] and P[k|k]. These values
@@ -222,11 +207,7 @@ TSy = zeros(rowR, 1);
 for ii = 1 : rowR
     for jj = 1 : nAnc
         % current best estimate before updating with the measurement result
-        % Assuming in 2D only at the moment
-%         ri_0(jj) = sqrt((Anc_2D(jj, 1) - x_t0).^2 + (Anc_2D(jj, 2) - y_t0).^2);        
-%         H(jj, 1) = (x_t0 - Anc_2D(jj, 1))./ ri_0(jj);
-%         H(jj, 2) = (y_t0 - Anc_2D(jj, 2))./ ri_0(jj);        
-        
+        % Assuming in 2D only at the moment        
         ri_0(jj) = sqrt((Anc_2D(jj, 1) - xy_t0(1)).^2 + (Anc_2D(jj, 2) - xy_t0(2)).^2);
         H(jj, 1) = (xy_t0(1) - Anc_2D(jj, 1))./ ri_0(jj);
         H(jj, 2) = (xy_t0(2) - Anc_2D(jj, 2))./ ri_0(jj);           
@@ -350,16 +331,11 @@ vicon_Data(4, :) = n_one(:);
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % Find the mean b/w two UWB systems
-% tuwb_x = (Xk_ML_KF_4R(:,1) + Xk_TS_KF_4R(:,1))./2;
-% tuwb_y = (Xk_ML_KF_4R(:,2) + Xk_TS_KF_4R(:,2))./2;
-% tuwb_z = zeros(rowR,1);               % We don't have Z value in 2D
 tuwb_x = (Xk_KF_Tri(:,1) + Xk_ML_KF_4R(:,1) + Xk_TS_KF_4R(:,1) + xCorrectedEKFObj(:,1)+ xCorrectedUKF(:, 1))./5;
 tuwb_y = (Xk_KF_Tri(:,2) + Xk_ML_KF_4R(:,2) + Xk_TS_KF_4R(:,2) + xCorrectedEKFObj(:,2)+ xCorrectedUKF(:, 2))./5;
 tuwb_z = zeros(rowR,1);               % We don't have Z value in 2D
 
 % Data for point cloud object(M-by-3 array | M-by-N-by-3 array)
-% uwb_xyzPoints = [tri_x tri_y tri_z];
-% uwb_xyzPoints = [mul_x mul_y mul_z];
 uwb_xyzPoints = [tuwb_x tuwb_y tuwb_z];
 vicon_Points = [vX vY vZ];
 
@@ -396,6 +372,7 @@ RT_vicon = Rz_theta * T_vnm * vicon_Data;
 ptCloud_vicon_init = pctransform(ptCloud_vicon, affine3d((Rz_theta * T_init)'));
 
 [tform, transformed_Vicon, rmse] = pcregistericp(ptCloud_vicon_init, ptCloud_uwb,'Extrapolate',true);
+fprintf("The transformation Matrix for Point Cloud registration\n");
 disp(tform.T);
 disp(rmse);
 
@@ -423,21 +400,3 @@ plot(Xk_TS_KF_4R(:, 1), Xk_TS_KF_4R(:, 2),':', 'LineWidth', 2);
 legend('Vicon', 'EKF','UKF', 'Trilat.+KF', 'Multilat.+KF', 'TS+KF', 'Position',[0.40 0.43 0.20 0.24]);
 title('Tracking Dynamic Movement at 6x6 m laboratory');
 grid on;
-
-%{
-%%%%%%%%%%%%%%% SAVING THE DATA IN MAT FILE FORMAT %%%%%%%%%%%%%%%%%%%%%
-% 2D data : Arrange the data in a single matrix. Change the name as require
-uwb2D_Tri_LS_TS_EKF_UKF = [Xk_KF_Tri(:,1), Xk_KF_Tri(:,2), Xk_ML_KF_4R(:,1), Xk_ML_KF_4R(:,2), Xk_TS_KF_4R(:,1), ...
-         Xk_TS_KF_4R(:,2), xCorrectedEKFObj(:,1), xCorrectedEKFObj(:,2), xCorrectedUKF(:,1), xCorrectedUKF(:,2)];
-
-% Save the 2D data in .mat file 
-save('UWB_5Algo_M2R_2D.mat','uwb2D_Tri_LS_TS_EKF_UKF')
-%}
-
-
-% 3D data 
-% UWBdata3D_Tri_Multi_KF = [trilat_x, trilat_y, trilat_z, kf_trilat_x, kf_trilat_y, kf_trilat_z, ...
-%         multilat_x, multilat_y, multilat_z, kf_multilat_x, kf_multilat_y, kf_multilat_z];
-% save the 3D data in .mat file 
-% save('UWB_4vnm_3D.mat', 'UWBdata3D_Tri_Multi_KF')
-%}

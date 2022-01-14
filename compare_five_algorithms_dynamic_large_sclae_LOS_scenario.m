@@ -1,8 +1,5 @@
 close all; clear; clc;
 
-% addpath('helper_functions');    % add "helper_functions" to the path
-% addpath('tight_subplot');       % add "tight_subplot" folder to the path
-
 % Extract UWB data from MAT-file
 UWBdata  = load('exp_data\five_algorithms_UWB_mat\UWB_5Algo_LOS_sportHall_2D.mat');
 % UWBdata  = load('log_exp_data\UWB_3D_mat\UWB_4vnm_3D.mat');

@@ -13,7 +13,6 @@ EKF_y    = UWBdata.uwb2D_Tri_LS_TS_EKF_UKF(:, 8);         % EKF Y
 UKF_x    = UWBdata.uwb2D_Tri_LS_TS_EKF_UKF(:, 9);         % UKF  X
 UKF_y    = UWBdata.uwb2D_Tri_LS_TS_EKF_UKF(:, 10);        % UKF Y
 
-
 [rowR, colR] = size(Tx_KF);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -49,14 +48,7 @@ tuwb_x = (Tx_KF + Mx_KF + TSx_KF + EKF_x + UKF_x)./5;
 tuwb_y = (Ty_KF + My_KF + TSy_KF + EKF_y + UKF_y)./5;
 tuwb_z = zeros(rowR,1);               % We don't have Z value in 2D
 
-% Individual error rate 
-% tuwb_x = UKF_x ;
-% tuwb_y = UKF_y;
-% tuwb_z = zeros(rowR,1);               % We don't have Z value in 2D
-
 % Data for point cloud object(M-by-3 array | M-by-N-by-3 array)
-% uwb_xyzPoints = [tri_x tri_y tri_z];
-% uwb_xyzPoints = [mul_x mul_y mul_z];
 uwb_xyzPoints = [tuwb_x tuwb_y tuwb_z];
 vicon_Points = [vX vY vZ];
 
@@ -93,6 +85,7 @@ RT_vicon = Rz_theta * T_vnm * vicon_Data;
 ptCloud_vicon_init = pctransform(ptCloud_vicon, affine3d((Rz_theta * T_init)'));
 
 [tform, transformed_Vicon, rmse] = pcregistericp(ptCloud_vicon_init, ptCloud_uwb,'Extrapolate',true);
+fprintf("The transformation Matrix for Point Cloud registration\n");
 disp(tform.T);
 disp(rmse);
 
@@ -129,12 +122,3 @@ ylabel('Y-coordinate / m');
 grid on; grid minor;
 xlim([-0.06 0.14]);
 ylim([-0.06 0.08]);
-
-
-% RMSE
-% (y - yhat)    % Errors
-% (y - yhat).^2   % Squared Error
-% mean((y - yhat).^2)   % Mean Squared Error
-RMSE_x = sqrt(mean((Tx_KF - mu_vx).^2));  
-RMSE_y = sqrt(mean((Ty_KF - mu_vy).^2)); 
-RMSE_xy = sqrt(mean((RMSE_x - RMSE_y).^2));

@@ -45,19 +45,11 @@ vicon_Data(4, :) = n_one(:);
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Poit Cloud ICP algorithm for Vicon Data
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-% Find the mean b/w two UWB systems
-% tuwb_x = (Tx_KF + Mx_KF + TSx_KF + EKF_x + UKF_x)./5;
-% tuwb_y = (Ty_KF + My_KF + TSy_KF + EKF_y + UKF_y)./5;
-% tuwb_z = zeros(rowR,1);               % We don't have Z value in 2D
-
 tuwb_x = EKF_x;
 tuwb_y = EKF_y;
 tuwb_z = zeros(rowR,1);               % We don't have Z value in 2D
 
 % Data for point cloud object(M-by-3 array | M-by-N-by-3 array)
-% uwb_xyzPoints = [tri_x tri_y tri_z];
-% uwb_xyzPoints = [mul_x mul_y mul_z];
 uwb_xyzPoints = [tuwb_x tuwb_y tuwb_z];
 vicon_Points = [vX vY vZ];
 

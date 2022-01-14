@@ -27,9 +27,9 @@ r_t2A3 = r_t2A3 ./ 1000;
 % the columns of the matrix 
 t2A_4R = [r_t2A0 r_t2A1 r_t2A2 r_t2A3]; % use 4 ranges
 
-% dimKF = 2;
+dimKF = 2;
 % % Init Constant velocity for standard Kalman Fitler
-% [xk, A, Pk, Q, Hkf, R] = initConstVelocity_KF(dimKF);  % define the dimension
+[xk, A, Pk, Q, Hkf, R] = initConstVelocity_KF(dimKF);  % define the dimension
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -38,20 +38,12 @@ t2A_4R = [r_t2A0 r_t2A1 r_t2A2 r_t2A3]; % use 4 ranges
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-% This is the official Matlab example for ekfObj from Mathworks taken from
-% here https://www.mathworks.com/help/control/ref/extendedkalmanfilter.html#bvd_iy8-11
-
 % Specify an initial guess for the two states
 initialStateGuess = [2; 1.5; 0; 0];   % the state vector [x, y, vx, vy];
 
 %%% Create the extended Kalman filter ekfObject
 %%% Use function handles to provide the state transition and measurement functions to the ekfObject.
 ekfObj = extendedKalmanFilter(@citrackStateFcn,@citrackMeasurementFcnSportHall_40x20,initialStateGuess);
-
-%%% alternative way to create the ekfObj ekfObjects 
-% ekfObj = extendedKalmanFilter(@vdpStateFcn,@vdpMeasurementFcn,[2;0],...
-%     'ProcessNoise',0.01);
-% ekfObj.MeasurementNoise = 0.2;
 
 % Jacobians of the state transition and measurement functions
 ekfObj.StateTransitionJacobianFcn = @citrackStateJacobianFcn;
@@ -61,8 +53,8 @@ ekfObj.MeasurementJacobianFcn = @citrackMeasurementJacobianFcnSportHall_40x20;
 R_ekf = diag([0.016 0.014 0.014 0.014]);   % based on the moving exp data using std error
 % R_ekf = diag([(0.0826.*10^-4) (0.0550.*10^-4) (0.0778.*10^-4) (0.1127.*10^-4)]); 
 ekfObj.MeasurementNoise = R_ekf;
-Q_ekf = diag([0.01 0.01 0.01 0.01]);
-% Q_ekf = Q;
+% Q_ekf = diag([0.01 0.01 0.01 0.01]);
+Q_ekf = Q;
 ekfObj.ProcessNoise = Q_ekf ;
 
 
@@ -72,12 +64,7 @@ PCorrectedEKF = zeros(Nsteps,4,4); % Corrected state estimation error covariance
 e = zeros(Nsteps,4); % Residuals (or innovations)
 timeVector = 1 : Nsteps;
 
-for k=1 : Nsteps
-    % Let k denote the current time.
-    %
-    % Residuals (or innovations): Measured output - Predicted output
-%     e(k,:) = yMeas(:, k) - citrackMeasurementFcn(ekfObj.State);
-    
+for k=1 : Nsteps    
     % Incorporate the measurements at time k into the state estimates by
     % using the "correct" command. This updates the State and StateCovariance
     % properties of the filter to contain x[k|k] and P[k|k]. These values
@@ -115,10 +102,6 @@ xCorrectedUKF = zeros(Nsteps,4); % Corrected state estimates
 PCorrectedUKF = zeros(Nsteps,4,4); % Corrected state estimation error covariances
 
 for k=1:Nsteps
-    % Let k denote the current time.
-    %
-    % Residuals (or innovations): Measured output - Predicted output
-%     e(k) = yMeas(k) - vdpMeasurementFcn(ukf.State); % ukf.State is x[k|k-1] at this point
     % Incorporate the measurements at time k into the state estimates by
     % using the "correct" command. This updates the State and StateCovariance
     % properties of the filter to contain x[k|k] and P[k|k]. These values
@@ -166,7 +149,7 @@ A3_2d = [0, 40];
 Anc_2D = [A0_2d; A1_2d; A2_2d; A3_2d];
 
 % initialize kalman filter. It needs to excecute only once 
-[xk, A, Pk, Q, Hkf, R] = initConstVelocity_KF(dimKF);  % define the dimension
+% [xk, A, Pk, Q, Hkf, R] = initConstVelocity_KF(dimKF);  % define the dimension
 
 for ii = 1 : rowR
     
@@ -226,11 +209,7 @@ TSy = zeros(rowR, 1);
 for ii = 1 : rowR
     for jj = 1 : nAnc
         % current best estimate before updating with the measurement result
-        % Assuming in 2D only at the moment
-%         ri_0(jj) = sqrt((Anc_2D(jj, 1) - x_t0).^2 + (Anc_2D(jj, 2) - y_t0).^2);        
-%         H(jj, 1) = (x_t0 - Anc_2D(jj, 1))./ ri_0(jj);
-%         H(jj, 2) = (y_t0 - Anc_2D(jj, 2))./ ri_0(jj);        
-        
+        % Assuming in 2D only at the moment        
         ri_0(jj) = sqrt((Anc_2D(jj, 1) - xy_t0(1)).^2 + (Anc_2D(jj, 2) - xy_t0(2)).^2);
         H(jj, 1) = (xy_t0(1) - Anc_2D(jj, 1))./ ri_0(jj);
         H(jj, 2) = (xy_t0(2) - Anc_2D(jj, 2))./ ri_0(jj);           
@@ -264,7 +243,7 @@ for ii = 1 : rowR
         Z_ts(3) = TSz(ii);
     end
     
-        % Applying Kalman Filter in the Measurement in Taylor Series  
+    % Applying Kalman Filter in the Measurement in Taylor Series  
     [xk_ts, Pk_ts] = perform_KF(xk_ts, A_ts, Pk_ts, Q_ts, H_ts, R_ts, Z_ts(:));    
     
     % store the output data from KF to the buffer for plotting 
@@ -299,7 +278,7 @@ for ii = 1 : rowR
     %%%%% Trilateration method using closed-form approach  %%%%%%%
     [Tx(ii), Ty(ii), Tz(ii)] = performTrilateration(Anc_2D, t2A_4R(ii, :));  % for weighted ranges
     
-        % measured data to feed to KF
+    % measured data to feed to KF
     if(dimKF == 2)
         Z(1) = Tx(ii);
         Z(2) = Ty(ii);
@@ -431,14 +410,3 @@ xlim([17.2 17.8]);
 ylim([15 25]);
 grid on;
 grid minor;
-
-
-%{
-%%%%%%%%%%%%%%% SAVING THE DATA IN MAT FILE FORMAT %%%%%%%%%%%%%%%%%%%%%
-% 2D data : Arrange the data in a single matrix. Change the name as require
-uwb2D_Tri_LS_TS_EKF_UKF = [Xk_KF_Tri(:,1), Xk_KF_Tri(:,2), Xk_ML_KF_4R(:,1), Xk_ML_KF_4R(:,2), Xk_TS_KF_4R(:,1), ...
-         Xk_TS_KF_4R(:,2), xCorrectedEKFObj(:,1), xCorrectedEKFObj(:,2), xCorrectedUKF(:,1), xCorrectedUKF(:,2)];
-
-% Save the 2D data in .mat file 
-save('UWB_5Algo_LOS_sportHall_2D.mat','uwb2D_Tri_LS_TS_EKF_UKF')
-%}
