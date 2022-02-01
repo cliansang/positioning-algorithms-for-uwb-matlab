@@ -3,11 +3,9 @@ close all; clear; clc;
 % add directory to the path
 addpath('helper_functions');    % add "helper_functions" to the path
 
-
 %%%%%%%%%%%%%%%%%%%% REAL MEASUREMENT DATA %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Load the logged Data 
-% getRangeUWB = importfile_Ranges_Matlab('exp_data\UWB_data_Ranges\output_range_uwb_4vnm.txt');
-getRangeUWB = importfile_Ranges('exp_data\Sporthall_data_Ranges\op10_Ranges_40_20_anchors_wholeField_running.txt');
+getRangeUWB = importfile_Ranges('exp_data\UWB_data_Ranges\output_range_uwb_m2r.txt');
 [rowR, colR] = size(getRangeUWB);
 ts_R = getRangeUWB.ts;
 tid  = getRangeUWB.tagID;       % tag ID no.
@@ -28,8 +26,20 @@ r_t2A3 = r_t2A3 ./ 1000;
 t2A_4R = [r_t2A0 r_t2A1 r_t2A2 r_t2A3]; % use 4 ranges
 
 dimKF = 2;
-% % Init Constant velocity for standard Kalman Fitler
-[xk, A, Pk, Q, Hkf, R] = initConstVelocity_KF(dimKF);  % define the dimension
+% dimKF = 3;
+
+%%%%%%%%%%% Initialization of state parameters %%%%%%%%%%%%%
+% For Constant velocity Motion Model in standard Kalman Fitler
+% [xk, A, Pk, Q, Hkf, R] = initConstVelocity_KF(dimKF);  % define the dimension
+
+% For Constant Acceleration Dynamic/Motion Model
+[xk, A, Pk, Q, Hkf, R] = initConstAcceleration_KF(dimKF); 
+
+disp(issymmetric(Q));
+d = eig(Q);
+disp(all(d>0));
+disp("The eigen values of process noise (Q) are:");
+disp(d);
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -39,38 +49,42 @@ dimKF = 2;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % Specify an initial guess for the two states
-initialStateGuess = [2; 1.5; 0; 0];   % the state vector [x, y, vx, vy];
+% initialStateGuess = [2; 1.5; 0; 0];   % the state vector [x, y, vx, vy];
+initialStateGuess = xk ;
 
 %%% Create the extended Kalman filter ekfObject
 %%% Use function handles to provide the state transition and measurement functions to the ekfObject.
-ekfObj = extendedKalmanFilter(@citrackStateFcn,@citrackMeasurementFcnSportHall_40x20,initialStateGuess);
+ekfObj = extendedKalmanFilter(@citrackStateFcn,@citrackMeasurementFcn,initialStateGuess);
+
+%%% alternative way to create the ekfObj ekfObjects 
+% ekfObj = extendedKalmanFilter(@vdpStateFcn,@vdpMeasurementFcn,[2;0],...
+%     'ProcessNoise',0.01);
+% ekfObj.MeasurementNoise = 0.2;
 
 % Jacobians of the state transition and measurement functions
 ekfObj.StateTransitionJacobianFcn = @citrackStateJacobianFcn;
-ekfObj.MeasurementJacobianFcn = @citrackMeasurementJacobianFcnSportHall_40x20;
+ekfObj.MeasurementJacobianFcn = @citrackMeasurementJacobianFcn;
 
 % Variance of the measurement noise v[k] and process noise w[k]
-R_ekf = diag([0.016 0.014 0.014 0.014]);   % based on the moving exp data using std error
+R_ekf = diag([0.0016 0.0014 0.0014 0.0014]);   % based on the moving exp data using std error
 % R_ekf = diag([(0.0826.*10^-4) (0.0550.*10^-4) (0.0778.*10^-4) (0.1127.*10^-4)]); 
 ekfObj.MeasurementNoise = R_ekf;
-% Q_ekf = diag([0.01 0.01 0.01 0.01]);
+% Q_ekf = diag([0.001 0.001 0.001 0.001]);
 Q_ekf = Q;
 ekfObj.ProcessNoise = Q_ekf ;
 
-
 [Nsteps, n] = size(t2A_4R); 
-xCorrectedEKFObj = zeros(Nsteps,4); % Corrected state estimates
-PCorrectedEKF = zeros(Nsteps,4,4); % Corrected state estimation error covariances
-e = zeros(Nsteps,4); % Residuals (or innovations)
-timeVector = 1 : Nsteps;
+xCorrectedEKFObj = zeros(Nsteps, length(xk)); % Corrected state estimates
+PCorrectedEKF = zeros(Nsteps, length(xk), length(xk)); % Corrected state estimation error covariances
 
-for k=1 : Nsteps    
+for k=1 : Nsteps
+    
     % Incorporate the measurements at time k into the state estimates by
     % using the "correct" command. This updates the State and StateCovariance
     % properties of the filter to contain x[k|k] and P[k|k]. These values
     % are also produced as the output of the "correct" command.    
-%     [xCorrectedekfObj(k,:), PCorrected(k,:,:)] = correct(ekfObj,yMeas(:, k));  % why 2x1 instead 4x1?
-    [xCorrectedEKFObj(k,:), PCorrectedEKF(k,:,:)] = correct(ekfObj,t2A_4R(k, :));  % why 2x1 instead 4x1?
+%     [xCorrectedekfObj(k,:), PCorrected(k,:,:)] = correct(ekfObj,yMeas(:, k)); 
+    [xCorrectedEKFObj(k,:), PCorrectedEKF(k,:,:)] = correct(ekfObj,t2A_4R(k, :)); 
     
     % Predict the states at next time step, k+1. This updates the State and
     % StateCovariance properties of the filter to contain x[k+1|k] and
@@ -87,7 +101,7 @@ end
 
 ukf = unscentedKalmanFilter(...
     @citrackStateFcn,... % State transition function
-    @citrackMeasurementFcnSportHall_40x20,... % Measurement function
+    @citrackMeasurementFcn,... % Measurement function
     initialStateGuess,...
     'HasAdditiveMeasurementNoise',true);   % default is "true"
 
@@ -98,10 +112,11 @@ Q_ukf = Q_ekf;
 ukf.ProcessNoise = Q_ukf;
 
 
-xCorrectedUKF = zeros(Nsteps,4); % Corrected state estimates
-PCorrectedUKF = zeros(Nsteps,4,4); % Corrected state estimation error covariances
+xCorrectedUKF = zeros(Nsteps, length(xk)); % Corrected state estimates
+PCorrectedUKF = zeros(Nsteps, length(xk), length(xk)); % Corrected state estimation error covariances
 
 for k=1:Nsteps
+    
     % Incorporate the measurements at time k into the state estimates by
     % using the "correct" command. This updates the State and StateCovariance
     % properties of the filter to contain x[k|k] and P[k|k]. These values
@@ -129,22 +144,16 @@ Mz = zeros(rowR, 1);
 AncID_nlos = 0;
 
 % Known anchors Positions in 2D at TWB
-% A0_2d = [0, 0];          
-% A1_2d = [5.77, 0]; 
-% A2_2d = [5.55, 5.69];
-% A3_2d = [0, 5.65];
+A0_2d = [0, 0];          
+A1_2d = [5.77, 0]; 
+A2_2d = [5.55, 5.69];
+A3_2d = [0, 5.65];
 
 % Known anchors positions in Sporthall
 % A0_2d = [0, 0];          
 % A1_2d = [20, 0]; 
 % A2_2d = [20, 20];
 % A3_2d = [0, 20];
-
-% Known anchors positions in Sporthall at 40x20 positions
-A0_2d = [0, 0];          
-A1_2d = [20, 0]; 
-A2_2d = [20, 40];
-A3_2d = [0, 40];
 
 Anc_2D = [A0_2d; A1_2d; A2_2d; A3_2d];
 
@@ -203,7 +212,7 @@ TSx = zeros(rowR, 1);
 TSy = zeros(rowR, 1); 
 
 % Renew the kalman filter initialization for Taylor Series 
-[xk_ts, A_ts, Pk_ts, Q_ts, H_ts, R_ts] = initConstVelocity_KF(dimKF);  % define the dimension
+[xk, A, Pk, Q, Hkf, R] = initConstVelocity_KF(dimKF);  % define the dimension
 
 
 for ii = 1 : rowR
@@ -235,27 +244,28 @@ for ii = 1 : rowR
     
     % measured data to feed to KF
     if(dimKF == 2)
-        Z_ts(1) = TSx(ii);
-        Z_ts(2) = TSy(ii);
+        Z(1) = TSx(ii);
+        Z(2) = TSy(ii);
     else
-        Z_ts(1) = TSx(ii);
-        Z_ts(2) = TSy(ii);
-        Z_ts(3) = TSz(ii);
+        Z(1) = TSx(ii);
+        Z(2) = TSy(ii);
+        Z(3) = TSz(ii);
     end
     
-    % Applying Kalman Filter in the Measurement in Taylor Series  
-    [xk_ts, Pk_ts] = perform_KF(xk_ts, A_ts, Pk_ts, Q_ts, H_ts, R_ts, Z_ts(:));    
+        % Applying Kalman Filter in the Measurement in Taylor Series  
+    [xk, Pk] = perform_KF(xk, A, Pk, Q, Hkf, R, Z(:));    
     
     % store the output data from KF to the buffer for plotting 
     if(dimKF == 2)
-        Xk_TS_KF_4R(ii, 1) = xk_ts(1);
-        Xk_TS_KF_4R(ii, 2) = xk_ts(2);
+        Xk_TS_KF_4R(ii, 1) = xk(1);
+        Xk_TS_KF_4R(ii, 2) = xk(2);
     else
-        Xk_TS_KF_4R(ii, 1) = xk_ts(1);
-        Xk_TS_KF_4R(ii, 2) = xk_ts(2);
-        Xk_TS_KF_4R(ii, 3) = xk_ts(3);
+        Xk_TS_KF_4R(ii, 1) = xk(1);
+        Xk_TS_KF_4R(ii, 2) = xk(2);
+        Xk_TS_KF_4R(ii, 3) = xk(3);
     end    
 end
+
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -278,7 +288,7 @@ for ii = 1 : rowR
     %%%%% Trilateration method using closed-form approach  %%%%%%%
     [Tx(ii), Ty(ii), Tz(ii)] = performTrilateration(Anc_2D, t2A_4R(ii, :));  % for weighted ranges
     
-    % measured data to feed to KF
+        % measured data to feed to KF
     if(dimKF == 2)
         Z(1) = Tx(ii);
         Z(2) = Ty(ii);
@@ -302,60 +312,85 @@ for ii = 1 : rowR
     end
 end
 
-%{
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
-% DATA EXTRACTION FrOM BUILT-IN TRILATERATION ALGORITHM
+% VICON CAMERA SYSTEM AS A REFERENCES
 %
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Data achieved from the log files of UWB system // op8 , op2 and op4
-exp_data = importfile('exp_data\Sporthall_data_XYZ\op13_XYZ_40_20_Xshape_running_nlos.txt');
-[m, n] = size(exp_data);
-ts_XYZ = exp_data.ts;            % timestamps
-id     = exp_data.tID;           % tag ID no.
-uX     = exp_data.var_X;         % position data from X
-uY     = exp_data.var_Y;         % position data from Y
-uZ     = exp_data.var_Z;         % position data from Z
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-dimKF = 2;   % dimension of KF
-Xk_KF_Tri = zeros(m , dimKF);   % Place holder for Trilateration algorithm
+% load the Vican data stored in the MAT file 
+vd   = load('exp_data\Vicon_mat\m2R.mat');
+v_ts = vd.posedata_uwb(:, 2);
+vX   = vd.posedata_uwb(:, 4);     % position X
+vY   = vd.posedata_uwb(:, 5);     % position Y
+vZ   = vd.posedata_uwb(:, 6);     % position Z
+vTx  = vd.posedata_uwb(:, 7);     % orientation X
+vTy  = vd.posedata_uwb(:, 8);     % orientation Y
+vTz  = vd.posedata_uwb(:, 9);     % orientation Z
+vTw  = vd.posedata_uwb(:, 10);    % orietation w
 
-% reinitialized KF for Trilateration
-[xk_tri, A_tri, Pk_tri, Q_tri, H_tri, R_tri] = initConstVelocity_KF(dimKF);  % define the dimension
+n_one = ones(length(vX), 1);
+vicon_Data(1, :) = vX(:);
+vicon_Data(2, :) = vY(:);
+vicon_Data(3, :) = vZ(:);
+vicon_Data(4, :) = n_one(:);
 
-% Kalman filter for Trilateration 
-for i = 1 : m    
-    % measured data to feed to KF
-    if(dimKF == 2)
-        Z_tri(1) = uX(i);
-        Z_tri(2) = uY(i);
-    else
-        Z_tri(1) = uX(i);
-        Z_tri(2) = uY(i);
-        Z_tri(3) = uZ(i);
-    end
-    
-    % Applying Kalman Filter in the Measurement 
-    [xk_tri, Pk_tri] = perform_KF(xk_tri, A_tri, Pk_tri, Q_tri, H_tri, R_tri, Z_tri(:));    
-    
-    % store the output data from KF to the buffer for plotting
-    if(dimKF == 3)
-        Xk_KF_Tri(i, 1) = xk_tri(1);
-        Xk_KF_Tri(i, 2) = xk_tri(2); 
-        Xk_KF_Tri(i, 3) = xk_tri(3);
-    else
-        Xk_KF_Tri(i, 1) = xk_tri(1);
-        Xk_KF_Tri(i, 2) = xk_tri(2); 
-    end
-end
-%}
 
-% Create a true trajectory line for Badminton field
-x1= 2.5; x2= 17.5;
-y1= 6; y2= 34;
-true_x = [x1, x2, x2, x1, x1];    % true trajectory for X
-true_y = [y1, y1, y2, y2, y1];      % true trajectory for Y
-% plot(true_x, true_y, 'b-', 'LineWidth', 2);
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Poit Cloud ICP algorithm for Vicon Data
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% Find the mean b/w two UWB systems
+tuwb_x = (Xk_KF_Tri(:,1) + Xk_ML_KF_4R(:,1) + Xk_TS_KF_4R(:,1) + xCorrectedEKFObj(:,1)+ xCorrectedUKF(:, 1))./5;
+tuwb_y = (Xk_KF_Tri(:,2) + Xk_ML_KF_4R(:,2) + Xk_TS_KF_4R(:,2) + xCorrectedEKFObj(:,2)+ xCorrectedUKF(:, 2))./5;
+tuwb_z = zeros(rowR,1);               % We don't have Z value in 2D
+
+% Data for point cloud object(M-by-3 array | M-by-N-by-3 array)
+uwb_xyzPoints = [tuwb_x tuwb_y tuwb_z];
+vicon_Points = [vX vY vZ];
+
+% perform the point cloud object
+ptCloud_uwb = pointCloud(uwb_xyzPoints);     
+ptCloud_vicon = pointCloud(vicon_Points);
+
+% Rotation angle b/w UWB and Vicon in TWB (180 degree in Z-direction)
+Rz_theta = [cos(pi)  -sin(pi) 0     0;
+            sin(pi)  cos(pi)  0     0;
+            0        0        1     0;
+            0        0        0     1];
+        
+% Translation matrix for initialization
+T_init  =  [1      0    0    -2.200717;
+            0      1    0    -2.926282;
+            0      0    1    2.322566;
+            0      0    0    1];
+         
+% Displance vector for Location 1 (non-moving). this value is estimated
+% from the the data intepolation b/w vicon and UWB systems. it is also used
+% as the initial translation matrix in moving part         
+T_vnm  =   [1      0    0    -2.218717;
+            0      1    0    -2.923282;
+            0      0    1    2.322566;
+            0      0    0    1];
+               
+% Apply  rotate + translate on the distance vector of Vicon's base frame
+RT_vicon = Rz_theta * T_vnm * vicon_Data;
+
+
+% Transform initial vicon data from the initial rotation and translation
+% matrices
+ptCloud_vicon_init = pctransform(ptCloud_vicon, affine3d((Rz_theta * T_init)'));
+
+[tform, transformed_Vicon, rmse] = pcregistericp(ptCloud_vicon_init, ptCloud_uwb,'Extrapolate',true);
+fprintf("The transformation Matrix for Point Cloud registration\n");
+disp(tform.T);
+disp(rmse);
+
+% Retrieve the XYZ from the pointcloud
+xt_vicon = transformed_Vicon.Location(:,1);
+yt_vicon = transformed_Vicon.Location(:,2);
+zt_vicon = transformed_Vicon.Location(:,3);
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -364,49 +399,15 @@ true_y = [y1, y1, y2, y2, y1];      % true trajectory for Y
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-% Measurement results at Sport Hall 
+% Using Vicon camera as reference 
 figure
-plot(true_x, true_y, 'k-', 'LineWidth', 2); hold on;
-plot(Xk_KF_Tri(:,1), Xk_KF_Tri(:,2), 'LineWidth', 1.5); hold on;
-plot(Xk_ML_KF_4R(:,1), Xk_ML_KF_4R(:,2), ':', 'LineWidth', 1.5);
-plot(Xk_TS_KF_4R(:, 1), Xk_TS_KF_4R(:, 2),'-.', 'LineWidth', 1.5);
+% scatter(Mx, My); hold on;
+scatter(xt_vicon, yt_vicon); hold on;
 plot(xCorrectedEKFObj(:,1), xCorrectedEKFObj(:,2), 'LineWidth', 3); hold on;
 plot(xCorrectedUKF(:, 1), xCorrectedUKF(:, 2), '--', 'LineWidth', 1.5);
-legend('True trajectory', 'Tri.+KF', 'LS+KF', 'TS+KF', 'EKF','UKF', 'Position',[0.26 0.56 0.23 0.24]);
-title(' Tracking a ruuner on the boarder of a Badminton field in LOS scenario');
-xlabel('X-coordinate / m');
-ylabel('Y-coordinate / m');
-grid on; 
-grid minor;
-xlim([-2 35]);
-ylim([-2 35]);
-
-% create a new pair of axes inside current figure
-axes('Position',[.6 .6 .3 .28])
-box on % put box around new pair of axes
-plot(true_x, true_y, 'k-', 'LineWidth', 2); hold on;
-plot(Xk_KF_Tri(:,1), Xk_KF_Tri(:,2), 'LineWidth', 1.5); hold on;
-plot(Xk_ML_KF_4R(:,1), Xk_ML_KF_4R(:,2), ':', 'LineWidth', 1.5);
-plot(Xk_TS_KF_4R(:, 1), Xk_TS_KF_4R(:, 2),'-.', 'LineWidth', 1.5);
-plot(xCorrectedEKFObj(:,1), xCorrectedEKFObj(:,2), 'LineWidth', 3); hold on;
-plot(xCorrectedUKF(:, 1), xCorrectedUKF(:, 2), '--', 'LineWidth', 1.5);
-xlim([16 18]);
-ylim([32 35]);
+plot(Xk_KF_Tri(:,1), Xk_KF_Tri(:,2),'-.', 'LineWidth', 1.5);
+plot(Xk_ML_KF_4R(:,1), Xk_ML_KF_4R(:,2), 'LineWidth', 1.5);
+plot(Xk_TS_KF_4R(:, 1), Xk_TS_KF_4R(:, 2),':', 'LineWidth', 2);
+legend('Vicon', 'EKF','UKF', 'Trilat.+KF', 'Multilat.+KF', 'TS+KF', 'Position',[0.40 0.43 0.20 0.24]);
+title('Tracking Dynamic Movement at 6x6 m laboratory');
 grid on;
-grid minor;
-
-
-% create a new pair of axes inside current figure
-% Ref: https://www.mathworks.com/matlabcentral/answers/60376-how-to-make-an-inset-of-matlab-figure-inside-the-figure
-axes('Position',[.6 .18 .25 .37])
-box on % put box around new pair of axes
-plot(true_x, true_y, 'k-', 'LineWidth', 2); hold on;
-plot(Xk_KF_Tri(:,1), Xk_KF_Tri(:,2), 'LineWidth', 1.5); hold on;
-plot(Xk_ML_KF_4R(:,1), Xk_ML_KF_4R(:,2), ':', 'LineWidth', 1.5);
-plot(Xk_TS_KF_4R(:, 1), Xk_TS_KF_4R(:, 2),'-.', 'LineWidth', 1.5);
-plot(xCorrectedEKFObj(:,1), xCorrectedEKFObj(:,2), 'LineWidth', 3); hold on;
-plot(xCorrectedUKF(:, 1), xCorrectedUKF(:, 2), '--', 'LineWidth', 1.5);
-xlim([17.2 17.8]);
-ylim([15 25]);
-grid on;
-grid minor;

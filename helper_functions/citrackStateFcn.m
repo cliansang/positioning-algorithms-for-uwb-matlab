@@ -22,12 +22,35 @@ function x = citrackStateFcn(x)
   dt = 0.1; % [s] Sample time
     
 % State Transition Matrix
-  A = [1  0   dt  0;
-       0  1   0   dt;
-       0  0   1   0;
-       0  0   0   1];
+%   A = [1  0   dt  0;
+%        0  1   0   dt;
+%        0  0   1   0;
+%        0  0   0   1];
+   
+%%%%%% State Transition Matrix CV and CA motion models %%%%%%
+  state_vec_len = length(x);
+  
+  if (state_vec_len == 4) % This means 2D state vector for Consta Velocity model
+    % xk = [x, y, vx, vy]
+    A = [1  0   dt  0;
+            0  1   0   dt;
+            0  0   1   0;
+            0  0   0   1];
+        
+  elseif (state_vec_len == 6) % This means 2D state vector with const accleration model
+    % xk = [x, y, vx, vy, ax, ay]
+    A = [1   0   dt  0    dt.^2./2   0;
+            0   1   0   dt   0          dt.^2./2;
+            0   0   1   0    dt         0;
+            0   0   0   1    0          dt;
+            0   0   0   0   1           0;
+            0   0   0   0   0           1];      
+  else
+    msg = "Error: state vector for 3D is in TODO list and not implemented yet!\n";
+    error(msg);
+  end
 
-% State transition is just a linear in our case 
+% State transition is just a linear fucntion in our case 
   x = A * x;
 end
 

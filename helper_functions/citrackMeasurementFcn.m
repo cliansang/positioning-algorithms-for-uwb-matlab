@@ -6,9 +6,6 @@ function yk = citrackMeasurementFcn(xk)
 % Outputs:
 %    yk - y[k], measurements at time k
 
-%#codegen
-% The tag %#codegen must be included if you wish to generate code with 
-% MATLAB Coder.
 
 % Known anchors Positions in 2D at TWB
 A0_2d = [0, 0];          
@@ -24,7 +21,9 @@ A3_2d = [0, 5.65];
 
 Anc_2D = [A0_2d; A1_2d; A2_2d; A3_2d];
 [nAnc, nDim] = size(Anc_2D);
-yk = zeros(size(xk));
+
+yk = zeros(nAnc, 1);  % There are 4 measurements from 4 anchors and a tag
+% yk = zeros(size(xk)); % TODO: this seems incorrect for CA case
 
 for jj = 1 : nAnc
     % This is the delta range, i.e. the measured minus the best

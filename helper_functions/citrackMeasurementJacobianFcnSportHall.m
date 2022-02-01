@@ -38,16 +38,30 @@ Anc_2D = [A0_2d; A1_2d; A2_2d; A3_2d];
 [nAnc, nDim] = size(Anc_2D);
 dhdx = zeros(nAnc, nAnc);
 ri_0 = zeros(nAnc, 1);
+state_vec_len = length(xk);
 
 for jj = 1 : nAnc
     % This is the Jacobian Matrix for measurement 
 %     dhdx(jj) = sqrt((Anc_2D(jj, 1) - xk(1)).^2 + (Anc_2D(jj, 2) - xk(2)).^2); 
     ri_0(jj) = sqrt((Anc_2D(jj, 1) - xk(1)).^2 + (Anc_2D(jj, 2) - xk(2)).^2);
-
-    dhdx(jj, 1) = (xk(1) - Anc_2D(jj, 1))./ ri_0(jj);
-    dhdx(jj, 2) = (xk(2) - Anc_2D(jj, 2))./ ri_0(jj);
-    dhdx(jj, 3) = 0;           % no velocity measurement data
-    dhdx(jj, 4) = 0;
+    
+    if (state_vec_len == 4) % 2D Constant accelaration model
+        dhdx(jj, 1) = (xk(1) - Anc_2D(jj, 1))./ ri_0(jj);
+        dhdx(jj, 2) = (xk(2) - Anc_2D(jj, 2))./ ri_0(jj);
+        dhdx(jj, 3) = 0;           % no velocity measurement data
+        dhdx(jj, 4) = 0;
+        
+    elseif (state_vec_len == 6) 
+        dhdx(jj, 1) = (xk(1) - Anc_2D(jj, 1))./ ri_0(jj);
+        dhdx(jj, 2) = (xk(2) - Anc_2D(jj, 2))./ ri_0(jj);
+        dhdx(jj, 3) = 0;  % no velocity measurement data
+        dhdx(jj, 4) = 0;
+        dhdx(jj, 5) = 0;  % No acceleration data available in the measurement 
+        dhdx(jj, 6) = 0; 
+    else
+        msg = "Error: 3D state vector is not implemented yet!\n";
+        error(msg);    
+    end
 end
 
 end

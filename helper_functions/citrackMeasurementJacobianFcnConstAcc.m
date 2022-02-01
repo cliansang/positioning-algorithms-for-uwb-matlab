@@ -1,4 +1,4 @@
-function dhdx = citrackMeasurementJacobianFcnSportHall_40x20(xk)  
+function dhdx = citrackMeasurementJacobianFcnConstAcc(xk)  
 
 % dhdx = vdpMeasurementJacobianFcn(x)
 %
@@ -9,11 +9,18 @@ function dhdx = citrackMeasurementJacobianFcnSportHall_40x20(xk)
 %    dhdx - dh/dx, the Jacobian of citrackMeasurementFcn evaluated at x[k]
 %
 
+
+%#codegen
+
+% The tag %#codegen must be included if you wish to generate code with 
+% MATLAB Coder.
+% dhdx = [1 0];
+
 % Known anchors Positions in 2D at TWB
-% A0_2d = [0, 0];          
-% A1_2d = [5.77, 0]; 
-% A2_2d = [5.55, 5.69];
-% A3_2d = [0, 5.65];
+A0_2d = [0, 0];          
+A1_2d = [5.77, 0]; 
+A2_2d = [5.55, 5.69];
+A3_2d = [0, 5.65];
 
 % Known anchors positions in Sporthall
 % A0_2d = [0, 0];          
@@ -21,17 +28,13 @@ function dhdx = citrackMeasurementJacobianFcnSportHall_40x20(xk)
 % A2_2d = [20, 20];
 % A3_2d = [0, 20];
 
-% Known anchors positions in Sporthall at 40x20 positions
-A0_2d = [0, 0];          
-A1_2d = [20, 0]; 
-A2_2d = [20, 40];
-A3_2d = [0, 40];
-
 Anc_2D = [A0_2d; A1_2d; A2_2d; A3_2d];
 [nAnc, nDim] = size(Anc_2D);
-dhdx = zeros(nAnc, nAnc);
-ri_0 = zeros(nAnc, 1);
 state_vec_len = length(xk);
+
+% dhdx = zeros(nAnc, nAnc);
+dhdx = zeros(nAnc, state_vec_len);
+ri_0 = zeros(nAnc, 1);
 
 for jj = 1 : nAnc
     % This is the Jacobian Matrix for measurement 
@@ -43,8 +46,7 @@ for jj = 1 : nAnc
         dhdx(jj, 2) = (xk(2) - Anc_2D(jj, 2))./ ri_0(jj);
         dhdx(jj, 3) = 0;           % no velocity measurement data
         dhdx(jj, 4) = 0;
-        
-    elseif (state_vec_len == 6) 
+    elseif (state_vec_len == 6)
         dhdx(jj, 1) = (xk(1) - Anc_2D(jj, 1))./ ri_0(jj);
         dhdx(jj, 2) = (xk(2) - Anc_2D(jj, 2))./ ri_0(jj);
         dhdx(jj, 3) = 0;  % no velocity measurement data
