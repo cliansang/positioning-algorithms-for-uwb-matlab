@@ -14,10 +14,13 @@ function [Xk, A, Pk, Q, H, R] = initConstVelocity_KF(dim)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 dt = 0.3;    % update rate of the system 
+
+% Process noise based on the Decawave datasheet excluding (Z -direction)
 v_x = 0.01;  % the precision (m) of DW1000 in var (10 cm)
 v_y = 0.01;
 v_z = 0.01855;
 
+% Measurement noise 
 v_xm = 0.015;  % the precision (m) of DW1000 in var (10 cm)
 v_ym = 0.015;
 v_zm = 0.02855;
@@ -43,22 +46,23 @@ if (dim == 2)
     % Process Noise
     % accoording to the book "estimation with applications to tracking'', Page
     % 273, Chapter 6    
-%     Q = [v_x.*(dt.^4./4)      0      v_x.*(dt.^3./2)   0;
-%           0      v_y.*(dt.^4./4)      0   v_y.*(dt.^3./2);
-%           v_x.*(dt.^3./2)      0    v_x.*(dt.^2)     0;
-%           0      v_y.*(dt.^3./2)       0    v_y.*(dt.^2) ];
+    Q = [v_x.*(dt.^4./4)      0      v_x.*(dt.^3./2)   0;
+         0      v_y.*(dt.^4./4)      0   v_y.*(dt.^3./2);
+         v_x.*(dt.^3./2)      0    v_x.*(dt.^2)     0;
+         0      v_y.*(dt.^3./2)       0    v_y.*(dt.^2) ];
 
-    % This is the right way to tune the process noise, since actual data
+    % This could also be another way to tune the process noise, since actual data
     % that we received is just (X,Y), and not velocity. 
 %     Q = [v_x.*(dt.^4./4)    0                (dt.^3./2)  0;
 %           0                 v_y.*(dt.^4./4)  0          (dt.^3./2);
 %          (dt.^3./2)    0                (dt.^2)     0;
 %           0                 (dt.^3./2)  0          (dt.^2) ];
 
-    Q = [ v_x.*(dt.^4./4)      0       0   0;
-          0      v_y.*(dt.^4./4)      0   0;
-          0      0    (dt.^3)./2     0;
-          0      0       0    (dt.^3)./2 ];
+%     Q = [ v_x.*(dt.^4./4)      0       0   0;
+%           0      v_y.*(dt.^4./4)      0   0;
+%           0      0    (dt.^3)./2     0;
+%           0      0       0    (dt.^3)./2 ];
+      
 %     Q = diag([((v_x*dt.^4)./4) ((v_y*dt.^4)./4) (dt.^2)./2 (dt.^2)./2]);
 %     Q = diag([((v_x*dt.^4)./4) ((v_y*dt.^4)./4) (dt) (dt)]);
 %     Q = diag([(v_x) (v_y) (v_x) (v_y)]);
@@ -123,9 +127,9 @@ elseif (dim == 3)   % 3D in KF
         0  0  1  0  0   0];
     
     % The measurement noise covariance R
-    R=[ v_x   0       0;
-        0       v_y   0;
-        0       0       v_z];
+    R=[ v_xm   0       0;
+        0       v_ym   0;
+        0       0       v_zm];
     
 else
     msg = "Error: undefined motion model for current implementation!\n";

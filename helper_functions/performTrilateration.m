@@ -30,8 +30,8 @@ Z = sqrt(d_1^2 - X^2 - Y^2);
 
 
 
-%%%%%%% The following is for an arbitary anchors set-up, which is currently 
-%%%%%%% not necessary in this  control implementation.
+%%% The following is for an arbitary anchors set-up, which is currently 
+%%% not necessary for the implementation purposes of this project
 %{
 % Constant Declaration for Geometric precision of Dilution
 MAXZERO = 0.001;
