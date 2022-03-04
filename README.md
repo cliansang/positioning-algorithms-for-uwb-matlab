@@ -9,15 +9,13 @@ The code snippets regarding the point clould transformation and registration of 
 The [Control System Toolbox](https://www.mathworks.com/products/control.html) from mathworks was used for the implementation of UKF and EKF in this repo.   
 
 ## Publications 
-If you find this work useful in the academic context, please consider to cite the following papers:
+If you find this work useful in the academic context, please consider to cite one of the following papers:
 
     @INPROCEEDINGS{Sang2019Comparative,
         author={Sang, Cung Lian and Adams, Michael and Hesse, Marc and Hörmann, Timm and Korthals, Timo and Rückert, Ulrich},
         booktitle={2019 16th Workshop on Positioning, Navigation and Communications (WPNC)}, 
         title={A Comparative Study of UWB-based True-Range Positioning Algorithms using Experimental Data}, 
-        year={2019},
-        volume={},
-        number={},
+        year={2019},        
         pages={1-6},
         doi={10.1109/WPNC47567.2019.8970249}
     }
@@ -26,9 +24,7 @@ If you find this work useful in the academic context, please consider to cite th
         author={Sang, Cung Lian and Adams, Michael and Korthals, Timo and Hörmann, Timm and Hesse, Marc and Rückert, Ulrich},
         booktitle={2019 International Conference on Indoor Positioning and Indoor Navigation (IPIN)}, 
         title={A Bidirectional Object Tracking and Navigation System using a True-Range Multilateration Method}, 
-        year={2019},
-        volume={},
-        number={},
+        year={2019},        
         pages={1-8},
         doi={10.1109/IPIN.2019.8911811}
     }
