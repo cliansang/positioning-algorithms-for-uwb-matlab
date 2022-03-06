@@ -1,11 +1,12 @@
 close all; clear; clc;
 
 % add directory to the path
-addpath('helper_functions');    % add "helper_functions" to the path
+addpath('..\');
+addpath('..\helper_functions');    % add "helper_functions" to the path
 
 %%%%%%%%%%%%%%%%%%%% REAL MEASUREMENT DATA %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Load the logged Data 
-getRangeUWB = importfile_Ranges('exp_data\UWB_data_Ranges\output_range_uwb_m2r.txt');
+getRangeUWB = importfile_Ranges('..\exp_data\UWB_data_Ranges\output_range_uwb_m2r.txt');
 [rowR, colR] = size(getRangeUWB);
 ts_R = getRangeUWB.ts;
 tid  = getRangeUWB.tagID;       % tag ID no.
@@ -99,7 +100,7 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % load the Vican data stored in the MAT file 
-vd   = load('exp_data\Vicon_mat\m2R.mat');
+vd   = load('..\exp_data\Vicon_mat\m2R.mat');
 v_ts = vd.posedata_uwb(:, 2);
 vX   = vd.posedata_uwb(:, 4);     % position X
 vY   = vd.posedata_uwb(:, 5);     % position Y

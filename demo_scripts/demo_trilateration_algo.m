@@ -1,11 +1,12 @@
 close all; clear; clc;
 
 % add directory to the path
-addpath('helper_functions');    % add "helper_functions" to the path
+addpath('..\');
+addpath('..\helper_functions');
 
 %%%%%%%%%%%%%%%%%%%% REAL MEASUREMENT DATA %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Load the logged Data 
-getRangeUWB = importfile_Ranges('exp_data\UWB_data_Ranges\output_range_uwb_m2r.txt');
+getRangeUWB = importfile_Ranges('..\exp_data\UWB_data_Ranges\output_range_uwb_m2r.txt');
 [rowR, colR] = size(getRangeUWB);
 ts_R = getRangeUWB.ts;
 tid  = getRangeUWB.tagID;       % tag ID no.
@@ -41,44 +42,65 @@ disp(all(d>0));
 disp("The eigen values of process noise (Q) are:");
 disp(d);
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%% Known Anchors' Positions %%%%%%%%%%%%%%%%%%%%%%
+% Known anchors Positions in 2D at TWB
+A0_2d = [0, 0];          
+A1_2d = [5.77, 0]; 
+A2_2d = [5.55, 5.69];
+A3_2d = [0, 5.65];
+
+% Known anchors positions in Sporthall
+% A0_2d = [0, 0];          
+% A1_2d = [20, 0]; 
+% A2_2d = [20, 20];
+% A3_2d = [0, 20];
+
+Anc_2D = [A0_2d; A1_2d; A2_2d; A3_2d];
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
-% UNSCENTED KALMAN FILTER IMPLEMENTATION USING CONTROL SYSTEM TOOLBOX
+% TRILATERATION ALGORITHM USING MEASURED RANGES
 %
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Specify an initial guess for the two states
-initialStateGuess = xk ;
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+dimKF = 2;   % dimension of KF
+Xk_KF_Tri = zeros(rowR , dimKF);   % Place holder for Trilateration algorithm
+Tx = zeros(rowR, 1);   
+Ty = zeros(rowR, 1);     
+Tz = zeros(rowR, 1); 
 
-ukf = unscentedKalmanFilter(...
-    @citrackStateFcn,... % State transition function
-    @citrackMeasurementFcn,... % Measurement function
-    initialStateGuess,...
-    'HasAdditiveMeasurementNoise',true);   % default is "true"
+% reinitialized KF for Trilateration
+% [xk, A, Pk, Q, H, R] = initConstVelocity_KF(dimKF);  % define the dimension
 
-% Measurement Noise and Process Noise 
-R_ekf = diag([0.0016 0.0014 0.0014 0.0014]);   % based on the moving exp data using std error
-R_ukf = R_ekf;
-ukf.MeasurementNoise = R_ukf;
-
-Q_ekf = Q;
-Q_ukf = Q_ekf;
-ukf.ProcessNoise = Q_ukf;
-
-[Nsteps, n] = size(t2A_4R); 
-xCorrectedUKF = zeros(Nsteps, length(xk)); % Corrected state estimates
-PCorrectedUKF = zeros(Nsteps, length(xk), length(xk)); % Corrected state estimation error covariances
-
-for k=1:Nsteps
+% Kalman filter for Trilateration 
+for ii = 1 : rowR  
     
-    % Incorporate the measurements at time k into the state estimates by
-    % using the "correct" command. This updates the State and StateCovariance
-    % properties of the filter to contain x[k|k] and P[k|k]. These values
-    % are also produced as the output of the "correct" command.
-    [xCorrectedUKF(k,:), PCorrectedUKF(k,:,:)] = correct(ukf, t2A_4R(k,:));
-    % Predict the states at next time step, k+1. This updates the State and
-    % StateCovariance properties of the filter to contain x[k+1|k] and
-    % P[k+1|k]. These will be utilized by the filter at the next time step.
-    predict(ukf);
+    %%%%% Trilateration method using closed-form approach  %%%%%%%
+    [Tx(ii), Ty(ii), Tz(ii)] = performTrilateration(Anc_2D, t2A_4R(ii, :));  % for weighted ranges
+    
+        % measured data to feed to KF
+    if(dimKF == 2)
+        Z(1) = Tx(ii);
+        Z(2) = Ty(ii);
+    else
+        Z(1) = Tx(ii);
+        Z(2) = Ty(ii);
+        Z(3) = Tz(ii);
+    end
+    
+    % Applying Kalman Filter in the Measurement 
+    [xk, Pk] = perform_KF(xk, A, Pk, Q, Hkf, R, Z(:));    
+    
+    % store the output data from KF to the buffer for plotting
+    if(dimKF == 3)
+        Xk_KF_Tri(ii, 1) = xk(1);
+        Xk_KF_Tri(ii, 2) = xk(2); 
+        Xk_KF_Tri(ii, 3) = xk(3);
+    else
+        Xk_KF_Tri(ii, 1) = xk(1);
+        Xk_KF_Tri(ii, 2) = xk(2); 
+    end
 end
 
 
@@ -89,7 +111,7 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % load the Vican data stored in the MAT file 
-vd   = load('exp_data\Vicon_mat\m2R.mat');
+vd   = load('..\exp_data\Vicon_mat\m2R.mat');
 v_ts = vd.posedata_uwb(:, 2);
 vX   = vd.posedata_uwb(:, 4);     % position X
 vY   = vd.posedata_uwb(:, 5);     % position Y
@@ -111,8 +133,8 @@ vicon_Data(4, :) = n_one(:);
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % Find the mean b/w two UWB systems
-tuwb_x =  xCorrectedUKF(:,1);
-tuwb_y =  xCorrectedUKF(:,2);
+tuwb_x =  Xk_KF_Tri(:,1);
+tuwb_y =  Xk_KF_Tri(:,2);
 tuwb_z = zeros(rowR,1);  % We don't have Z value in 2D
 
 % Data for point cloud object(M-by-3 array | M-by-N-by-3 array)
@@ -171,8 +193,8 @@ zt_vicon = transformed_Vicon.Location(:,3);
 % Using Vicon camera as reference 
 figure
 scatter(xt_vicon, yt_vicon); hold on;
-plot(xCorrectedUKF(:,1), xCorrectedUKF(:,2), 'LineWidth', 1.5);
-legend('Vicon', 'UKF');
+plot(Xk_KF_Tri(:,1), Xk_KF_Tri(:,2), 'LineWidth', 1.5);
+legend('Vicon', 'Trilat.+KF');
 title('Tracking Dynamic Movement at 6x6 m laboratory');
 grid on;
 

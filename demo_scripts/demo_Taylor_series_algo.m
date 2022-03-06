@@ -1,11 +1,12 @@
 close all; clear; clc;
 
 % add directory to the path
-addpath('helper_functions');    % add "helper_functions" to the path
+addpath('..\');
+addpath('..\helper_functions');
 
 %%%%%%%%%%%%%%%%%%%% REAL MEASUREMENT DATA %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Load the logged Data 
-getRangeUWB = importfile_Ranges('exp_data\UWB_data_Ranges\output_range_uwb_m2r.txt');
+getRangeUWB = importfile_Ranges('..\exp_data\UWB_data_Ranges\output_range_uwb_m2r.txt');
 [rowR, colR] = size(getRangeUWB);
 ts_R = getRangeUWB.ts;
 tid  = getRangeUWB.tagID;       % tag ID no.
@@ -43,16 +44,14 @@ disp(d);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
-% TRUE-RANGE MULTILATERATION USING CLOSED-FORM approach
+% ITERATIVE TAYLOR SERIES using incremental value approach
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% dimKF = 2;
-Xk_ML_KF_4R = zeros(rowR, dimKF);
-% place holders for the results
-Mx = zeros(rowR, 1);   
-My = zeros(rowR, 1);     
-Mz = zeros(rowR, 1); 
-AncID_nlos = 0;
+% initial assumption of the position in meter
+x_t0 = 2.5; y_t0 = 2.5; z_t0 = 2.0;
+
+% xy_t0 = [20000.5; 10000.5];
+xy_t0 = [2.5; 1.5];
 
 % Known anchors Positions in 2D at TWB
 A0_2d = [0, 0];          
@@ -68,37 +67,72 @@ A3_2d = [0, 5.65];
 
 Anc_2D = [A0_2d; A1_2d; A2_2d; A3_2d];
 
-% initialize kalman filter. It needs to excecute only once 
+
+[nAnc, nDim] = size(Anc_2D);
+ri_0 = zeros(nAnc, 1);
+delta_r = zeros(nAnc, 1);
+H = zeros(nAnc, nDim);
+
+dimKF = nDim;  % Dimension for Kalman filter (2D or 3D positioning system)
+Xk_TS_KF_4R = zeros(rowR, dimKF); % output state buffer for KF using 4 ranges
+TSx = zeros(rowR, 1);   
+TSy = zeros(rowR, 1); 
+
+% Renew the kalman filter initialization for Taylor Series 
 % [xk, A, Pk, Q, Hkf, R] = initConstVelocity_KF(dimKF);  % define the dimension
 
+
 for ii = 1 : rowR
-    
-    %%%%% Multilateration methods using closed-form approach  %%%%%%%
-    [Mx(ii), My(ii), Mz(ii)] = performMultilateration(Anc_2D, t2A_4R(ii, :), AncID_nlos);  % for weighted ranges
-    
-        % measured data to feed to KF
-    if(dimKF == 2)
-        Z(1) = Mx(ii);
-        Z(2) = My(ii);
-    else
-        Z(1) = Mx(ii);
-        Z(2) = My(ii);
-        Z(3) = Mz(ii);
+    for jj = 1 : nAnc
+        % current best estimate before updating with the measurement result
+        % Assuming in 2D only at the moment        
+        ri_0(jj) = sqrt((Anc_2D(jj, 1) - xy_t0(1)).^2 + (Anc_2D(jj, 2) - xy_t0(2)).^2);
+        H(jj, 1) = (xy_t0(1) - Anc_2D(jj, 1))./ ri_0(jj);
+        H(jj, 2) = (xy_t0(2) - Anc_2D(jj, 2))./ ri_0(jj);           
     end
     
-    % Applying Kalman Filter in the Measurement 
+    % the incremental delta value, i.e. delta_r = ri - ri_0
+    delta_r = t2A_4R(ii, :)' - ri_0;   % vectorized diff. b/w incremental ranges 
+%     toPlot(ii, :) = delta_r(:);
+
+    % compute iteratively the incremental value of delta_x
+    delta_xy = inv(H'  *H) * H' * delta_r;
+    
+    % Add the incremental value to the known best estimate to get full
+    % value of the estimation    
+    full_xy = xy_t0 + delta_xy;
+    
+    % save the best value for plotting
+    TSx(ii) = full_xy(1);
+    TSy(ii) = full_xy(2);    
+    
+    % update the best known value from the last full value
+    xy_t0 = full_xy; 
+    
+    % measured data to feed to KF
+    if(dimKF == 2)
+        Z(1) = TSx(ii);
+        Z(2) = TSy(ii);
+    else
+        Z(1) = TSx(ii);
+        Z(2) = TSy(ii);
+        Z(3) = TSz(ii);
+    end
+    
+    % Applying Kalman Filter in the Measurement in Taylor Series  
     [xk, Pk] = perform_KF(xk, A, Pk, Q, Hkf, R, Z(:));    
     
     % store the output data from KF to the buffer for plotting 
-    if(dimKF == 3)
-        Xk_ML_KF_4R(ii, 1) = xk(1);
-        Xk_ML_KF_4R(ii, 2) = xk(2);
-        Xk_ML_KF_4R(ii, 3) = xk(3);
+    if(dimKF == 2)
+        Xk_TS_KF_4R(ii, 1) = xk(1);
+        Xk_TS_KF_4R(ii, 2) = xk(2);
     else
-        Xk_ML_KF_4R(ii, 1) = xk(1);
-        Xk_ML_KF_4R(ii, 2) = xk(2);
-    end
+        Xk_TS_KF_4R(ii, 1) = xk(1);
+        Xk_TS_KF_4R(ii, 2) = xk(2);
+        Xk_TS_KF_4R(ii, 3) = xk(3);
+    end    
 end
+
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -108,7 +142,7 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % load the Vican data stored in the MAT file 
-vd   = load('exp_data\Vicon_mat\m2R.mat');
+vd   = load('..\exp_data\Vicon_mat\m2R.mat');
 v_ts = vd.posedata_uwb(:, 2);
 vX   = vd.posedata_uwb(:, 4);     % position X
 vY   = vd.posedata_uwb(:, 5);     % position Y
@@ -130,8 +164,8 @@ vicon_Data(4, :) = n_one(:);
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % Find the mean b/w two UWB systems
-tuwb_x =  Xk_ML_KF_4R(:,1);
-tuwb_y =  Xk_ML_KF_4R(:,2);
+tuwb_x =  Xk_TS_KF_4R(:,1);
+tuwb_y =  Xk_TS_KF_4R(:,2);
 tuwb_z = zeros(rowR,1);  % We don't have Z value in 2D
 
 % Data for point cloud object(M-by-3 array | M-by-N-by-3 array)
@@ -190,8 +224,8 @@ zt_vicon = transformed_Vicon.Location(:,3);
 % Using Vicon camera as reference 
 figure
 scatter(xt_vicon, yt_vicon); hold on;
-plot(Xk_ML_KF_4R(:,1), Xk_ML_KF_4R(:,2), 'LineWidth', 1.5);
-legend('Vicon', 'Multilat.+KF');
+plot(Xk_TS_KF_4R(:,1), Xk_TS_KF_4R(:,2), 'LineWidth', 1.5);
+legend('Vicon', 'TS+KF');
 title('Tracking Dynamic Movement at 6x6 m laboratory');
 grid on;
 

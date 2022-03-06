@@ -1,11 +1,12 @@
 close all; clear; clc;
 
 % add directory to the path
-addpath('helper_functions');    % add "helper_functions" to the path
+addpath('..\');
+addpath('..\helper_functions');
 
 %%%%%%%%%%%%%%%%%%%% REAL MEASUREMENT DATA %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Load the logged Data 
-getRangeUWB = importfile_Ranges('exp_data\UWB_data_Ranges\output_range_uwb_m2r.txt');
+getRangeUWB = importfile_Ranges('..\exp_data\UWB_data_Ranges\output_range_uwb_m2r.txt');
 [rowR, colR] = size(getRangeUWB);
 ts_R = getRangeUWB.ts;
 tid  = getRangeUWB.tagID;       % tag ID no.
@@ -41,8 +42,19 @@ disp(all(d>0));
 disp("The eigen values of process noise (Q) are:");
 disp(d);
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+% TRUE-RANGE MULTILATERATION USING CLOSED-FORM approach
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% dimKF = 2;
+Xk_ML_KF_4R = zeros(rowR, dimKF);
+% place holders for the results
+Mx = zeros(rowR, 1);   
+My = zeros(rowR, 1);     
+Mz = zeros(rowR, 1); 
+AncID_nlos = 0;
 
-%%%%%%%%%%%%%%%%%%%%%%%% Known Anchors' Positions %%%%%%%%%%%%%%%%%%%%%%
 % Known anchors Positions in 2D at TWB
 A0_2d = [0, 0];          
 A1_2d = [5.77, 0]; 
@@ -57,48 +69,35 @@ A3_2d = [0, 5.65];
 
 Anc_2D = [A0_2d; A1_2d; A2_2d; A3_2d];
 
+% initialize kalman filter. It needs to excecute only once 
+% [xk, A, Pk, Q, Hkf, R] = initConstVelocity_KF(dimKF);  % define the dimension
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%
-% TRILATERATION ALGORITHM USING MEASURED RANGES
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-dimKF = 2;   % dimension of KF
-Xk_KF_Tri = zeros(rowR , dimKF);   % Place holder for Trilateration algorithm
-Tx = zeros(rowR, 1);   
-Ty = zeros(rowR, 1);     
-Tz = zeros(rowR, 1); 
-
-% reinitialized KF for Trilateration
-% [xk, A, Pk, Q, H, R] = initConstVelocity_KF(dimKF);  % define the dimension
-
-% Kalman filter for Trilateration 
-for ii = 1 : rowR  
+for ii = 1 : rowR
     
-    %%%%% Trilateration method using closed-form approach  %%%%%%%
-    [Tx(ii), Ty(ii), Tz(ii)] = performTrilateration(Anc_2D, t2A_4R(ii, :));  % for weighted ranges
+    %%%%% Multilateration methods using closed-form approach  %%%%%%%
+    [Mx(ii), My(ii), Mz(ii)] = performMultilateration(Anc_2D, t2A_4R(ii, :), AncID_nlos);  % for weighted ranges
     
         % measured data to feed to KF
     if(dimKF == 2)
-        Z(1) = Tx(ii);
-        Z(2) = Ty(ii);
+        Z(1) = Mx(ii);
+        Z(2) = My(ii);
     else
-        Z(1) = Tx(ii);
-        Z(2) = Ty(ii);
-        Z(3) = Tz(ii);
+        Z(1) = Mx(ii);
+        Z(2) = My(ii);
+        Z(3) = Mz(ii);
     end
     
     % Applying Kalman Filter in the Measurement 
     [xk, Pk] = perform_KF(xk, A, Pk, Q, Hkf, R, Z(:));    
     
-    % store the output data from KF to the buffer for plotting
+    % store the output data from KF to the buffer for plotting 
     if(dimKF == 3)
-        Xk_KF_Tri(ii, 1) = xk(1);
-        Xk_KF_Tri(ii, 2) = xk(2); 
-        Xk_KF_Tri(ii, 3) = xk(3);
+        Xk_ML_KF_4R(ii, 1) = xk(1);
+        Xk_ML_KF_4R(ii, 2) = xk(2);
+        Xk_ML_KF_4R(ii, 3) = xk(3);
     else
-        Xk_KF_Tri(ii, 1) = xk(1);
-        Xk_KF_Tri(ii, 2) = xk(2); 
+        Xk_ML_KF_4R(ii, 1) = xk(1);
+        Xk_ML_KF_4R(ii, 2) = xk(2);
     end
 end
 
@@ -110,7 +109,7 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % load the Vican data stored in the MAT file 
-vd   = load('exp_data\Vicon_mat\m2R.mat');
+vd   = load('..\exp_data\Vicon_mat\m2R.mat');
 v_ts = vd.posedata_uwb(:, 2);
 vX   = vd.posedata_uwb(:, 4);     % position X
 vY   = vd.posedata_uwb(:, 5);     % position Y
@@ -132,8 +131,8 @@ vicon_Data(4, :) = n_one(:);
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % Find the mean b/w two UWB systems
-tuwb_x =  Xk_KF_Tri(:,1);
-tuwb_y =  Xk_KF_Tri(:,2);
+tuwb_x =  Xk_ML_KF_4R(:,1);
+tuwb_y =  Xk_ML_KF_4R(:,2);
 tuwb_z = zeros(rowR,1);  % We don't have Z value in 2D
 
 % Data for point cloud object(M-by-3 array | M-by-N-by-3 array)
@@ -192,8 +191,8 @@ zt_vicon = transformed_Vicon.Location(:,3);
 % Using Vicon camera as reference 
 figure
 scatter(xt_vicon, yt_vicon); hold on;
-plot(Xk_KF_Tri(:,1), Xk_KF_Tri(:,2), 'LineWidth', 1.5);
-legend('Vicon', 'Trilat.+KF');
+plot(Xk_ML_KF_4R(:,1), Xk_ML_KF_4R(:,2), 'LineWidth', 1.5);
+legend('Vicon', 'Multilat.+KF');
 title('Tracking Dynamic Movement at 6x6 m laboratory');
 grid on;
 
