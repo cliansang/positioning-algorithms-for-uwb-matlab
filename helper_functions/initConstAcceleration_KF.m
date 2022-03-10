@@ -15,14 +15,19 @@ function [Xk, A, Pk, Q, H, R] = initConstAcceleration_KF(dim)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 dt = 0.1;    % update rate of the system (10 Hz)
 
+% Process noise and measurement noise setup 
+% Note: These values can be tuned to get the most out of it for each
+% specific application since KF uses these noises across all evaluations.
+% This constant noise may not reflect well in every conditions.
+
 % Process noise based on the Decawave datasheet excluding (Z -direction)
 v_x = 0.01;  % the precision (m) of DW1000 in var (10 cm)
 v_y = 0.01;
 v_z = 0.01855;
 
 % Measurement noise 
-v_xm = 0.015;  % the precision (m) of DW1000 in var (10 cm)
-v_ym = 0.015;
+v_xm = 0.0137;  % Based on our prior data evaluation 
+v_ym = .0153;
 v_zm = 0.02855;
 
 % 2D implementation in KF
@@ -63,7 +68,7 @@ if (dim == 2)
     
     % Approximation of process noise excluding the off-diagonal values
     % For the purpose of numerical stability/efficiency 
-    Q = diag([q_t4  q_t4    dt^2    dt^2    1   1]);
+    Q = diag([q_t4  q_t4    dt^2    dt^2    1   1]); % Frequently used in practice 
 
     
     % The measurement matrix or Observation model matrix H.

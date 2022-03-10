@@ -56,21 +56,18 @@ initialStateGuess = xk ;
 %%% Use function handles to provide the state transition and measurement functions to the ekfObject.
 ekfObj = extendedKalmanFilter(@citrackStateFcn,@citrackMeasurementFcn,initialStateGuess);
 
-%%% alternative way to create the ekfObj ekfObjects 
-% ekfObj = extendedKalmanFilter(@vdpStateFcn,@vdpMeasurementFcn,[2;0],...
-%     'ProcessNoise',0.01);
-% ekfObj.MeasurementNoise = 0.2;
-
 % Jacobians of the state transition and measurement functions
 ekfObj.StateTransitionJacobianFcn = @citrackStateJacobianFcn;
 ekfObj.MeasurementJacobianFcn = @citrackMeasurementJacobianFcn;
 
-% Variance of the measurement noise v[k] and process noise w[k]
-R_ekf = diag([0.0016 0.0014 0.0014 0.0014]);   % based on the moving exp data using std error
-% R_ekf = diag([(0.0826.*10^-4) (0.0550.*10^-4) (0.0778.*10^-4) (0.1127.*10^-4)]); 
+% Measurement noise v[k] and process noise w[k]
+% R_ekf = diag([0.0151 0.0151 0.0151 0.0151]);     % based on the exp data by finding var of the spread
+R_ekf = diag([0.123 0.123 0.123 0.123]);   % spread of the data directly
 ekfObj.MeasurementNoise = R_ekf;
-% Q_ekf = diag([0.001 0.001 0.001 0.001]);
-Q_ekf = Q;
+
+% Q_ekf = diag([0.01 0.01 0.01 0.01 0.01 0.01]); % process noise regarding ranges is different from pose data 
+Q_ekf = diag([0.1 0.1 0.1 0.1 0.1 0.1]);  % use precision from datasheet directly 
+% Q_ekf = diag(Q);
 ekfObj.ProcessNoise = Q_ekf ;
 
 [Nsteps, n] = size(t2A_4R); 
@@ -146,26 +143,11 @@ T_init  =  [1      0    0    -2.200717;
             0      0    1    2.322566;
             0      0    0    1];
          
-% Displance vector for Location 1 (non-moving). this value is estimated
-% from the the data intepolation b/w vicon and UWB systems. it is also used
-% as the initial translation matrix in moving part         
-T_vnm  =   [1      0    0    -2.218717;
-            0      1    0    -2.923282;
-            0      0    1    2.322566;
-            0      0    0    1];
-               
-% Apply  rotate + translate on the distance vector of Vicon's base frame
-RT_vicon = Rz_theta * T_vnm * vicon_Data;
-
-
 % Transform initial vicon data from the initial rotation and translation
 % matrices
 ptCloud_vicon_init = pctransform(ptCloud_vicon, affine3d((Rz_theta * T_init)'));
 
 [tform, transformed_Vicon, rmse] = pcregistericp(ptCloud_vicon_init, ptCloud_uwb,'Extrapolate',true);
-fprintf("The transformation Matrix for Point Cloud registration\n");
-disp(tform.T);
-disp(rmse);
 
 % Retrieve the XYZ from the pointcloud
 xt_vicon = transformed_Vicon.Location(:,1);

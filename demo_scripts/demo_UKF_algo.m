@@ -57,13 +57,13 @@ ukf = unscentedKalmanFilter(...
     'HasAdditiveMeasurementNoise',true);   % default is "true"
 
 % Measurement Noise and Process Noise 
-R_ekf = diag([0.0016 0.0014 0.0014 0.0014]);   % based on the moving exp data using std error
-R_ukf = R_ekf;
-ukf.MeasurementNoise = R_ukf;
+% R_ekf = diag([0.0151 0.0151 0.0151 0.0151]);     % based on the exp data by finding var of the spread
+R_ekf = diag([0.123 0.123 0.123 0.123]);   % spread of the data directly
+ekfObj.MeasurementNoise = R_ekf;
 
-Q_ekf = Q;
-Q_ukf = Q_ekf;
-ukf.ProcessNoise = Q_ukf;
+% Q_ekf = diag([0.01 0.01 0.01 0.01 0.01 0.01]); % process noise regarding ranges is different from pose data 
+Q_ekf = diag([0.1 0.1 0.1 0.1 0.1 0.1]);  % use precision from datasheet directly 
+ekfObj.ProcessNoise = Q_ekf ;
 
 [Nsteps, n] = size(t2A_4R); 
 xCorrectedUKF = zeros(Nsteps, length(xk)); % Corrected state estimates
@@ -136,26 +136,11 @@ T_init  =  [1      0    0    -2.200717;
             0      0    1    2.322566;
             0      0    0    1];
          
-% Displance vector for Location 1 (non-moving). this value is estimated
-% from the the data intepolation b/w vicon and UWB systems. it is also used
-% as the initial translation matrix in moving part         
-T_vnm  =   [1      0    0    -2.218717;
-            0      1    0    -2.923282;
-            0      0    1    2.322566;
-            0      0    0    1];
-               
-% Apply  rotate + translate on the distance vector of Vicon's base frame
-RT_vicon = Rz_theta * T_vnm * vicon_Data;
-
-
 % Transform initial vicon data from the initial rotation and translation
 % matrices
 ptCloud_vicon_init = pctransform(ptCloud_vicon, affine3d((Rz_theta * T_init)'));
 
 [tform, transformed_Vicon, rmse] = pcregistericp(ptCloud_vicon_init, ptCloud_uwb,'Extrapolate',true);
-fprintf("The transformation Matrix for Point Cloud registration\n");
-disp(tform.T);
-disp(rmse);
 
 % Retrieve the XYZ from the pointcloud
 xt_vicon = transformed_Vicon.Location(:,1);

@@ -157,26 +157,11 @@ T_init  =  [1      0    0    -2.200717;
             0      0    1    2.322566;
             0      0    0    1];
          
-% Displance vector for Location 1 (non-moving). this value is estimated
-% from the the data intepolation b/w vicon and UWB systems. it is also used
-% as the initial translation matrix in moving part         
-T_vnm  =   [1      0    0    -2.218717;
-            0      1    0    -2.923282;
-            0      0    1    2.322566;
-            0      0    0    1];
-               
-% Apply  rotate + translate on the distance vector of Vicon's base frame
-RT_vicon = Rz_theta * T_vnm * vicon_Data;
-
-
 % Transform initial vicon data from the initial rotation and translation
 % matrices
 ptCloud_vicon_init = pctransform(ptCloud_vicon, affine3d((Rz_theta * T_init)'));
 
 [tform, transformed_Vicon, rmse] = pcregistericp(ptCloud_vicon_init, ptCloud_uwb,'Extrapolate',true);
-fprintf("The transformation Matrix for Point Cloud registration\n");
-disp(tform.T);
-disp(rmse);
 
 % Retrieve the XYZ from the pointcloud
 xt_vicon = transformed_Vicon.Location(:,1);

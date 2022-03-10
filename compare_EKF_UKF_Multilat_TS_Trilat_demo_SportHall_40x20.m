@@ -61,12 +61,14 @@ ekfObj = extendedKalmanFilter(@citrackStateFcn,@citrackMeasurementFcnSportHall_4
 ekfObj.StateTransitionJacobianFcn = @citrackStateJacobianFcn;
 ekfObj.MeasurementJacobianFcn = @citrackMeasurementJacobianFcnSportHall_40x20;
 
-% Variance of the measurement noise v[k] and process noise w[k]
-R_ekf = diag([0.016 0.014 0.014 0.014]);   % based on the moving exp data using std error
-% R_ekf = diag([(0.0826.*10^-4) (0.0550.*10^-4) (0.0778.*10^-4) (0.1127.*10^-4)]); 
+% Measurement noise v[k] and process noise w[k]
+% R_ekf = diag([0.0151 0.0151 0.0151 0.0151]);     % based on the exp data by finding var of the spread
+R_ekf = diag([0.123 0.123 0.123 0.123]);   % spread of the data directly
 ekfObj.MeasurementNoise = R_ekf;
-% Q_ekf = diag([0.01 0.01 0.01 0.01]);
-Q_ekf = Q;
+
+% Q_ekf = diag([0.01 0.01 0.01 0.01 0.01 0.01]); % process noise regarding ranges is different from pose data 
+Q_ekf = diag([0.1 0.1 0.1 0.1 0.1 0.1]);  % use precision from datasheet directly 
+% Q_ekf = diag(Q);
 ekfObj.ProcessNoise = Q_ekf ;
 
 
@@ -158,7 +160,8 @@ A3_2d = [0, 40];
 
 Anc_2D = [A0_2d; A1_2d; A2_2d; A3_2d];
 
-% initialize kalman filter. It needs to excecute only once 
+% Reinitialize kalman filter speicifally for Multilat. It needs to excecute only once 
+[xk, A, Pk, Q, Hkf, R] = initConstAcceleration_KF(dimKF);  % define the dimension
 % [xk, A, Pk, Q, Hkf, R] = initConstVelocity_KF(dimKF);  % define the dimension
 
 for ii = 1 : rowR
@@ -212,8 +215,9 @@ Xk_TS_KF_4R = zeros(rowR, dimKF); % output state buffer for KF using 4 ranges
 TSx = zeros(rowR, 1);   
 TSy = zeros(rowR, 1); 
 
-% Renew the kalman filter initialization for Taylor Series 
-[xk_ts, A_ts, Pk_ts, Q_ts, H_ts, R_ts] = initConstVelocity_KF(dimKF);  % define the dimension
+% Renew the kalman filter initialization for Taylor Series
+[xk_ts, A_ts, Pk_ts, Q_ts, H_ts, R_ts] = initConstAcceleration_KF(dimKF);  % define the dimension
+% [xk_ts, A_ts, Pk_ts, Q_ts, H_ts, R_ts] = initConstVelocity_KF(dimKF);  % define the dimension
 
 
 for ii = 1 : rowR
@@ -280,7 +284,8 @@ Ty = zeros(rowR, 1);
 Tz = zeros(rowR, 1); 
 
 % reinitialized KF for Trilateration
-[xk, A, Pk, Q, H, R] = initConstVelocity_KF(dimKF);  % define the dimension
+[xk, A, Pk, Q, H, R] = initConstAcceleration_KF(dimKF);  % define the dimension
+% [xk, A, Pk, Q, H, R] = initConstVelocity_KF(dimKF);  % define the dimension
 
 % Kalman filter for Trilateration 
 for ii = 1 : rowR  
@@ -312,53 +317,6 @@ for ii = 1 : rowR
     end
 end
 
-%{
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%
-% DATA EXTRACTION FrOM BUILT-IN TRILATERATION ALGORITHM
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Data achieved from the log files of UWB system // op8 , op2 and op4
-exp_data = importfile('exp_data\Sporthall_data_XYZ\op13_XYZ_40_20_Xshape_running_nlos.txt');
-[m, n] = size(exp_data);
-ts_XYZ = exp_data.ts;            % timestamps
-id     = exp_data.tID;           % tag ID no.
-uX     = exp_data.var_X;         % position data from X
-uY     = exp_data.var_Y;         % position data from Y
-uZ     = exp_data.var_Z;         % position data from Z
-
-dimKF = 2;   % dimension of KF
-Xk_KF_Tri = zeros(m , dimKF);   % Place holder for Trilateration algorithm
-
-% reinitialized KF for Trilateration
-[xk_tri, A_tri, Pk_tri, Q_tri, H_tri, R_tri] = initConstVelocity_KF(dimKF);  % define the dimension
-
-% Kalman filter for Trilateration 
-for i = 1 : m    
-    % measured data to feed to KF
-    if(dimKF == 2)
-        Z_tri(1) = uX(i);
-        Z_tri(2) = uY(i);
-    else
-        Z_tri(1) = uX(i);
-        Z_tri(2) = uY(i);
-        Z_tri(3) = uZ(i);
-    end
-    
-    % Applying Kalman Filter in the Measurement 
-    [xk_tri, Pk_tri] = perform_KF(xk_tri, A_tri, Pk_tri, Q_tri, H_tri, R_tri, Z_tri(:));    
-    
-    % store the output data from KF to the buffer for plotting
-    if(dimKF == 3)
-        Xk_KF_Tri(i, 1) = xk_tri(1);
-        Xk_KF_Tri(i, 2) = xk_tri(2); 
-        Xk_KF_Tri(i, 3) = xk_tri(3);
-    else
-        Xk_KF_Tri(i, 1) = xk_tri(1);
-        Xk_KF_Tri(i, 2) = xk_tri(2); 
-    end
-end
-%}
 
 % Create a true trajectory line for Badminton field
 x1= 2.5; x2= 17.5;
@@ -366,7 +324,6 @@ y1= 6; y2= 34;
 true_x = [x1, x2, x2, x1, x1];    % true trajectory for X
 true_y = [y1, y1, y2, y2, y1];      % true trajectory for Y
 % plot(true_x, true_y, 'b-', 'LineWidth', 2);
-
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
