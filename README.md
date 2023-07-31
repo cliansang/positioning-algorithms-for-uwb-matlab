@@ -30,3 +30,15 @@ If you find this work useful in the academic context, please consider to cite on
         pages={1-8},
         doi={10.1109/IPIN.2019.8911811}
     }
+
+    @misc{Sang2023Bidirectional,
+        author = {Sang, Cung Lian and Adams, Michael and Hesse, Marc and Rückert, Ulrich},  
+        title = {Bidirectional UWB Localization: A Review on an Elastic Positioning Scheme for GNSS-deprived Zones},
+        publisher = {arXiv},
+        year = {2023},
+        doi = {10.48550/ARXIV.2302.07706},
+        eprint={2302.07706},
+        archivePrefix={arXiv},
+        primaryClass={eess.SY}
+        copyright = {arXiv.org perpetual, non-exclusive license}
+    }
