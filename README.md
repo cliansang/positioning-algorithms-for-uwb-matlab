@@ -31,11 +31,12 @@ If you find this work useful in the academic context, please consider to cite on
         doi={10.1109/IPIN.2019.8911811}
     }
 
-    @ARTICLE{Sang2023Bidirectional ,
+    @ARTICLE{Sang2023Bidirectional,
         author={Sang, Cung Lian and Adams, Michael and Hesse, Marc and Rückert, Ulrich},
         journal={IEEE Journal of Indoor and Seamless Positioning and Navigation}, 
         title={Bidirectional UWB Localization: A Review on an Elastic Positioning Scheme for GNSS-deprived Zones}, 
         year={2023},
-        pages={1-19},
+        volume={1},
+        pages={161-179},
         doi={10.1109/JISPIN.2023.3337055}
     } 
